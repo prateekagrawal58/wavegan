@@ -40,15 +40,15 @@ def train(fps, args):
         prefetch_gpu_num=args.data_prefetch_gpu_num)[:, :, 0]
 
   # Make z vector
-  z = tf.random_uniform([args.train_batch_size, args.wavegan_latent_dim], -1., 1., dtype=tf.float32)
+  z = tf.random.uniform([args.train_batch_size, args.wavegan_latent_dim], -1., 1., dtype=tf.float32)
 
   # Make generator
-  with tf.variable_scope('G'):
+  with tf.compat.v1.variable_scope('G'):
     G_z = WaveGANGenerator(z, train=True, **args.wavegan_g_kwargs)
     if args.wavegan_genr_pp:
-      with tf.variable_scope('pp_filt'):
+      with tf.compat.v1.variable_scope('pp_filt'):
         G_z = tf.layers.conv1d(G_z, 1, args.wavegan_genr_pp_len, use_bias=False, padding='same')
-  G_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='G')
+  G_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='G')
 
   # Print G summary
   print('-' * 80)
@@ -62,19 +62,19 @@ def train(fps, args):
   print('Total params: {} ({:.2f} MB)'.format(nparams, (float(nparams) * 4) / (1024 * 1024)))
 
   # Summarize
-  tf.summary.audio('x', x, args.data_sample_rate)
-  tf.summary.audio('G_z', G_z, args.data_sample_rate)
+  tf.compat.v1.summary.audio('x', x, args.data_sample_rate)
+  tf.compat.v1.summary.audio('G_z', G_z, args.data_sample_rate)
   G_z_rms = tf.sqrt(tf.reduce_mean(tf.square(G_z[:, :, 0]), axis=1))
   x_rms = tf.sqrt(tf.reduce_mean(tf.square(x[:, :, 0]), axis=1))
-  tf.summary.histogram('x_rms_batch', x_rms)
-  tf.summary.histogram('G_z_rms_batch', G_z_rms)
-  tf.summary.scalar('x_rms', tf.reduce_mean(x_rms))
-  tf.summary.scalar('G_z_rms', tf.reduce_mean(G_z_rms))
+  tf.compat.v1.summary.histogram('x_rms_batch', x_rms)
+  tf.compat.v1.summary.histogram('G_z_rms_batch', G_z_rms)
+  tf.compat.v1.summary.scalar('x_rms', tf.reduce_mean(x_rms))
+  tf.compat.v1.summary.scalar('G_z_rms', tf.reduce_mean(G_z_rms))
 
   # Make real discriminator
   with tf.name_scope('D_x'), tf.variable_scope('D'):
     D_x = WaveGANDiscriminator(x, **args.wavegan_d_kwargs)
-  D_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='D')
+  D_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='D')
 
   # Print D summary
   print('-' * 80)
@@ -89,7 +89,7 @@ def train(fps, args):
   print('-' * 80)
 
   # Make fake discriminator
-  with tf.name_scope('D_G_z'), tf.variable_scope('D', reuse=True):
+  with tf.name_scope('D_G_z'), tf.compat.v1.variable_scope('D', reuse=True):
     D_G_z = WaveGANDiscriminator(G_z, **args.wavegan_d_kwargs)
 
   # Create loss
@@ -137,10 +137,10 @@ def train(fps, args):
     G_loss = -tf.reduce_mean(D_G_z)
     D_loss = tf.reduce_mean(D_G_z) - tf.reduce_mean(D_x)
 
-    alpha = tf.random_uniform(shape=[args.train_batch_size, 1, 1], minval=0., maxval=1.)
+    alpha = tf.random.uniform(shape=[args.train_batch_size, 1, 1], minval=0., maxval=1.)
     differences = G_z - x
     interpolates = x + (alpha * differences)
-    with tf.name_scope('D_interp'), tf.variable_scope('D', reuse=True):
+    with tf.name_scope('D_interp'), tf.compat.v1.variable_scope('D', reuse=True):
       D_interp = WaveGANDiscriminator(interpolates, **args.wavegan_d_kwargs)
 
     LAMBDA = 10
@@ -151,15 +151,15 @@ def train(fps, args):
   else:
     raise NotImplementedError()
 
-  tf.summary.scalar('G_loss', G_loss)
-  tf.summary.scalar('D_loss', D_loss)
+  tf.compat.v1.summary.scalar('G_loss', G_loss)
+  tf.compat.v1.summary.scalar('D_loss', D_loss)
 
   # Create (recommended) optimizer
   if args.wavegan_loss == 'dcgan':
-    G_opt = tf.train.AdamOptimizer(
+    G_opt = tf.compat.v1.train.AdamOptimizer(
         learning_rate=2e-4,
         beta1=0.5)
-    D_opt = tf.train.AdamOptimizer(
+    D_opt = tf.compat.v1.train.AdamOptimizer(
         learning_rate=2e-4,
         beta1=0.5)
   elif args.wavegan_loss == 'lsgan':
@@ -173,11 +173,11 @@ def train(fps, args):
     D_opt = tf.train.RMSPropOptimizer(
         learning_rate=5e-5)
   elif args.wavegan_loss == 'wgan-gp':
-    G_opt = tf.train.AdamOptimizer(
+    G_opt = tf.compat.v1.train.AdamOptimizer(
         learning_rate=1e-4,
         beta1=0.5,
         beta2=0.9)
-    D_opt = tf.train.AdamOptimizer(
+    D_opt = tf.compat.v1.train.AdamOptimizer(
         learning_rate=1e-4,
         beta1=0.5,
         beta2=0.9)
@@ -186,11 +186,11 @@ def train(fps, args):
 
   # Create training ops
   G_train_op = G_opt.minimize(G_loss, var_list=G_vars,
-      global_step=tf.train.get_or_create_global_step())
+      global_step=tf.compat.v1.train.get_or_create_global_step())
   D_train_op = D_opt.minimize(D_loss, var_list=D_vars)
 
   # Run training
-  with tf.train.MonitoredTrainingSession(
+  with tf.compat.v1.train.MonitoredTrainingSession(
       checkpoint_dir=args.train_dir,
       save_checkpoint_secs=args.train_save_secs,
       save_summaries_secs=args.train_summary_secs) as sess:
@@ -222,7 +222,7 @@ def train(fps, args):
     'G_z_flat_int16:0' int16 [None, 1]: Same as above but quantized to 16-bit PCM samples
   Example usage:
     import tensorflow as tf
-    tf.reset_default_graph()
+    tf.compat.v1.reset_default_graph()
 
     saver = tf.train.import_meta_graph('infer.meta')
     graph = tf.get_default_graph()
@@ -241,18 +241,18 @@ def infer(args):
     os.makedirs(infer_dir)
 
   # Subgraph that generates latent vectors
-  samp_z_n = tf.placeholder(tf.int32, [], name='samp_z_n')
-  samp_z = tf.random_uniform([samp_z_n, args.wavegan_latent_dim], -1.0, 1.0, dtype=tf.float32, name='samp_z')
+  samp_z_n =tf.compat.v1.placeholder(tf.int32, [], name='samp_z_n')
+  samp_z = tf.random.uniform([samp_z_n, args.wavegan_latent_dim], -1.0, 1.0, dtype=tf.float32, name='samp_z')
 
   # Input zo
-  z = tf.placeholder(tf.float32, [None, args.wavegan_latent_dim], name='z')
-  flat_pad = tf.placeholder(tf.int32, [], name='flat_pad')
+  z = tf.compat.v1.placeholder(tf.float32, [None, args.wavegan_latent_dim], name='z')
+  flat_pad = tf.compat.v1.placeholder(tf.int32, [], name='flat_pad')
 
   # Execute generator
-  with tf.variable_scope('G'):
+  with tf.compat.v1.variable_scope('G'):
     G_z = WaveGANGenerator(z, train=False, **args.wavegan_g_kwargs)
     if args.wavegan_genr_pp:
-      with tf.variable_scope('pp_filt'):
+      with tf.compat.v1.variable_scope('pp_filt'):
         G_z = tf.layers.conv1d(G_z, 1, args.wavegan_genr_pp_len, use_bias=False, padding='same')
   G_z = tf.identity(G_z, name='G_z')
 
@@ -271,22 +271,22 @@ def infer(args):
   G_z_flat_int16 = float_to_int16(G_z_flat, name='G_z_flat_int16')
 
   # Create saver
-  G_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='G')
-  global_step = tf.train.get_or_create_global_step()
-  saver = tf.train.Saver(G_vars + [global_step])
+  G_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope='G')
+  global_step = tf.compat.v1.train.get_or_create_global_step()
+  saver = tf.compat.v1.train.Saver(G_vars + [global_step])
 
   # Export graph
-  tf.train.write_graph(tf.get_default_graph(), infer_dir, 'infer.pbtxt')
+  tf.io.write_graph(tf.compat.v1.get_default_graph(), infer_dir, 'infer.pbtxt')
 
   # Export MetaGraph
   infer_metagraph_fp = os.path.join(infer_dir, 'infer.meta')
-  tf.train.export_meta_graph(
+  tf.compat.v1.train.export_meta_graph(
       filename=infer_metagraph_fp,
       clear_devices=True,
       saver_def=saver.as_saver_def())
 
   # Reset graph (in case training afterwards)
-  tf.reset_default_graph()
+  tf.compat.v1.reset_default_graph()
 
 
 """
@@ -305,7 +305,7 @@ def preview(args):
 
   # Load graph
   infer_metagraph_fp = os.path.join(args.train_dir, 'infer', 'infer.meta')
-  graph = tf.get_default_graph()
+  graph = tf.compat.v1.get_default_graph()
   saver = tf.train.import_meta_graph(infer_metagraph_fp)
 
   # Generate or restore z_i and z_o
@@ -332,7 +332,7 @@ def preview(args):
   feeds[graph.get_tensor_by_name('z:0')] = _zs
   feeds[graph.get_tensor_by_name('flat_pad:0')] = int(args.data_sample_rate / 2)
   fetches = {}
-  fetches['step'] = tf.train.get_or_create_global_step()
+  fetches['step'] = tf.compat.v1.train.get_or_create_global_step()
   fetches['G_z'] = graph.get_tensor_by_name('G_z:0')
   fetches['G_z_flat_int16'] = graph.get_tensor_by_name('G_z_flat_int16:0')
   if args.wavegan_genr_pp:
@@ -341,14 +341,14 @@ def preview(args):
   # Summarize
   G_z = graph.get_tensor_by_name('G_z_flat:0')
   summaries = [
-      tf.summary.audio('preview', tf.expand_dims(G_z, axis=0), args.data_sample_rate, max_outputs=1)
+      tf.compat.v1.summary.audio('preview', tf.expand_dims(G_z, axis=0), args.data_sample_rate, max_outputs=1)
   ]
   fetches['summaries'] = tf.summary.merge(summaries)
   summary_writer = tf.summary.FileWriter(preview_dir)
 
   # PP Summarize
   if args.wavegan_genr_pp:
-    pp_fp = tf.placeholder(tf.string, [])
+    pp_fp = tf.compat.v1.placeholder(tf.string, [])
     pp_bin = tf.read_file(pp_fp)
     pp_png = tf.image.decode_png(pp_bin)
     pp_summary = tf.summary.image('pp_filt', tf.expand_dims(pp_png, axis=0))
@@ -417,7 +417,7 @@ def incept(args):
   with gan_graph.as_default():
     infer_metagraph_fp = os.path.join(args.train_dir, 'infer', 'infer.meta')
     gan_saver = tf.train.import_meta_graph(infer_metagraph_fp)
-    score_saver = tf.train.Saver(max_to_keep=1)
+    score_saver = tf.compat.v1.train.Saver(max_to_keep=1)
   gan_z = gan_graph.get_tensor_by_name('z:0')
   gan_G_z = gan_graph.get_tensor_by_name('G_z:0')[:, :, 0]
   gan_step = gan_graph.get_tensor_by_name('global_step:0')
@@ -447,8 +447,8 @@ def incept(args):
   # Create summaries
   summary_graph = tf.Graph()
   with summary_graph.as_default():
-    incept_mean = tf.placeholder(tf.float32, [])
-    incept_std = tf.placeholder(tf.float32, [])
+    incept_mean = tf.compat.v1.placeholder(tf.float32, [])
+    incept_std = tf.compat.v1.placeholder(tf.float32, [])
     summaries = [
         tf.summary.scalar('incept_mean', incept_mean),
         tf.summary.scalar('incept_std', incept_std)
